@@ -22,7 +22,13 @@ router.post('/token', async (req: Request, res: Response) => {
   const livekitUrl = process.env.LIVEKIT_URL;
 
   if (!apiKey || !apiSecret) {
-    res.status(500).json({ error: 'LiveKit API credentials not configured' });
+    res.json({
+      roomId,
+      token: null,
+      livekitUrl: null,
+      preview: true,
+      message: 'LiveKit is not configured. Studio preview mode enabled.',
+    });
     return;
   }
 

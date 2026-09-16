@@ -104,6 +104,9 @@ const Studio: React.FC = () => {
   const [selectedVideo, setSelectedVideo] = useState<string>('');
   const [selectedAudio, setSelectedAudio] = useState<string>('');
   const [audioLevel, setAudioLevel] = useState(0);
+  const [previewAudioEnabled, setPreviewAudioEnabled] = useState(true);
+  const [previewVideoEnabled, setPreviewVideoEnabled] = useState(true);
+  const [isPreviewMode, setIsPreviewMode] = useState(false);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const isGuestView = (localSpeaker?.role ?? joinForm.role) === 'guest';
 
@@ -152,6 +155,8 @@ const Studio: React.FC = () => {
 
         setLocalStream(stream);
         setMediaError(null);
+        stream.getAudioTracks().forEach((track) => { track.enabled = previewAudioEnabled; });
+        stream.getVideoTracks().forEach((track) => { track.enabled = previewVideoEnabled; });
         
         // Setup Audio Level Meter
         const audioContext = new AudioContext();
@@ -198,7 +203,7 @@ const Studio: React.FC = () => {
     return () => {
       disposed = true;
     };
-  }, [selectedVideo, selectedAudio, joinForm.role]);
+  }, [selectedVideo, selectedAudio, joinForm.role, previewAudioEnabled, previewVideoEnabled]);
 
   useEffect(() => {
     if (previewVideoRef.current && localStream) {
@@ -363,7 +368,7 @@ const Studio: React.FC = () => {
         throw new Error('Unable to create the LiveKit access token.');
       }
 
-      const data = (await response.json()) as { token: string; livekitUrl?: string };
+      const data = (await response.json()) as { token?: string | null; livekitUrl?: string | null; preview?: boolean; message?: string };
 
       setLocalSpeaker((current) =>
         current
@@ -386,7 +391,14 @@ const Studio: React.FC = () => {
             }
       );
 
-      await connect(roomId, joinForm.name.trim(), data.token, data.livekitUrl);
+      if (data.preview || !data.token) {
+        setIsPreviewMode(true);
+      } else {
+        await connect(roomId, joinForm.name.trim(), data.token, data.livekitUrl ?? undefined, {
+          audioEnabled: previewAudioEnabled,
+          videoEnabled: previewVideoEnabled,
+        });
+      }
       setIsJoinModalVisible(false);
     } catch (error) {
       setJoinError(error instanceof Error ? error.message : 'Failed to join the studio.');
@@ -407,12 +419,34 @@ const Studio: React.FC = () => {
     [roomId]
   );
 
+  const handleToggleMute = () => {
+    if (!isPreviewMode) {
+      toggleMute();
+      return;
+    }
+    setPreviewAudioEnabled((enabled) => {
+      localStream?.getAudioTracks().forEach((track) => { track.enabled = !enabled; });
+      return !enabled;
+    });
+  };
+
+  const handleToggleCamera = () => {
+    if (!isPreviewMode) {
+      toggleCamera();
+      return;
+    }
+    setPreviewVideoEnabled((enabled) => {
+      localStream?.getVideoTracks().forEach((track) => { track.enabled = !enabled; });
+      return !enabled;
+    });
+  };
+
   return (
     <div
       style={{
         height: '100vh',
         overflow: 'hidden',
-        background: '#050a15',
+        background: '#0b0b0d',
         display: 'flex',
         flexDirection: 'column',
         position: 'relative',
@@ -496,13 +530,14 @@ const Studio: React.FC = () => {
             style={{
               flex: 1,
               width: '100%',
+              minHeight: 0,
               display: 'grid',
               gridTemplateColumns: gridColumns,
               gap: 24,
               alignContent: 'center',
               justifyContent: 'center',
               zIndex: 1,
-              overflowY: 'auto',
+              overflow: 'hidden',
               paddingBottom: backstageSpeakers.length > 0 ? 140 : 0,
             }}
           >
@@ -514,8 +549,8 @@ const Studio: React.FC = () => {
                 stream={stream}
                 isHost={localSpeaker?.role === 'host' || localSpeaker?.role === 'co-host'}
                 onToggleStage={() => handleToggleStage(speaker)}
-                onToggleMute={toggleMute}
-                onToggleCamera={toggleCamera}
+                onToggleMute={handleToggleMute}
+                onToggleCamera={handleToggleCamera}
               />
             ))}
           </div>
@@ -571,8 +606,8 @@ const Studio: React.FC = () => {
                     stream={stream}
                     isHost={localSpeaker?.role === 'host' || localSpeaker?.role === 'co-host'}
                     onToggleStage={() => handleToggleStage(speaker)}
-                    onToggleMute={toggleMute}
-                    onToggleCamera={toggleCamera}
+                    onToggleMute={handleToggleMute}
+                    onToggleCamera={handleToggleCamera}
                   />
                 </div>
               ))}
@@ -616,7 +651,7 @@ const Studio: React.FC = () => {
             {/* Control Bar + Reactions */}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 0,
-              background: 'linear-gradient(90deg, rgba(5,10,21,0.95) 0%, rgba(13,27,42,0.95) 100%)',
+              background: 'linear-gradient(90deg, rgba(11,11,13,0.96) 0%, rgba(28,28,32,0.96) 100%)',
               backdropFilter: 'blur(30px)',
               borderTop: '1px solid rgba(255,255,255,0.06)',
             }}>
@@ -641,11 +676,11 @@ const Studio: React.FC = () => {
               {/* Main Controls */}
               <div style={{ flex: 1 }}>
                 <StudioControlBar 
-                  isMuted={isMuted}
-                  isCameraOff={isCameraOff}
+                  isMuted={isPreviewMode ? !previewAudioEnabled : isMuted}
+                  isCameraOff={isPreviewMode ? !previewVideoEnabled : isCameraOff}
                   isScreenSharing={isScreenSharing}
-                  onToggleMute={toggleMute}
-                  onToggleCamera={toggleCamera}
+                  onToggleMute={handleToggleMute}
+                  onToggleCamera={handleToggleCamera}
                   onToggleScreenShare={() => isScreenSharing ? stopScreenShare() : startScreenShare()}
                   onLeave={() => {
                     disconnect();
@@ -693,7 +728,7 @@ const Studio: React.FC = () => {
             flexDirection: 'column',
             flexShrink: 0,
             borderLeft: '1px solid rgba(255,255,255,0.06)',
-            background: 'rgba(5,10,21,0.6)',
+            background: 'rgba(11,11,13,0.72)',
           }}
         >
           {!isGuestView && (
@@ -974,6 +1009,45 @@ const Studio: React.FC = () => {
                       transition: 'width 0.1s ease-out'
                     }} />
                   </div>
+                </div>
+
+                <div style={{ display: 'flex', gap: 12 }}>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewAudioEnabled((enabled) => !enabled)}
+                    style={{
+                      flex: 1,
+                      padding: '12px 14px',
+                      borderRadius: 12,
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: previewAudioEnabled ? 'rgba(16,185,129,0.16)' : 'rgba(255,77,77,0.16)',
+                      color: COLORS.white,
+                      cursor: 'pointer',
+                      fontFamily: FONTS.ui,
+                      fontWeight: 800,
+                      fontSize: 12,
+                    }}
+                  >
+                    {previewAudioEnabled ? '🎙️ AUDIO ON' : '🔇 AUDIO OFF'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPreviewVideoEnabled((enabled) => !enabled)}
+                    style={{
+                      flex: 1,
+                      padding: '12px 14px',
+                      borderRadius: 12,
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: previewVideoEnabled ? 'rgba(16,185,129,0.16)' : 'rgba(255,77,77,0.16)',
+                      color: COLORS.white,
+                      cursor: 'pointer',
+                      fontFamily: FONTS.ui,
+                      fontWeight: 800,
+                      fontSize: 12,
+                    }}
+                  >
+                    {previewVideoEnabled ? '📹 VIDEO ON' : '📷 VIDEO OFF'}
+                  </button>
                 </div>
 
                 <div style={{ display: 'grid', gap: 16 }}>

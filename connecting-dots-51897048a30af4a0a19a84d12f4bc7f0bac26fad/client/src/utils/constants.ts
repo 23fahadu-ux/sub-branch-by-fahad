@@ -13,7 +13,7 @@ export const COLORS = {
   darkText: '#0F172A',
   liveRed: '#FF4D4D',
   green: '#10B981',
-  bg: '#050A15',
+  bg: '#0B0B0D',
   glass: 'rgba(255, 255, 255, 0.05)',
   glassBorder: 'rgba(255, 255, 255, 0.1)',
   youtube: '#FF0000',

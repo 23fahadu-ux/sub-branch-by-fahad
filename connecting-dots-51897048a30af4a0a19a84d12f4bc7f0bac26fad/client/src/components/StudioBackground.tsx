@@ -26,15 +26,15 @@ const StudioBackground: React.FC<StudioBackgroundProps> = ({
   backgroundImageUrl,
 }) => {
   const bgColors: Record<string, string> = {
-    'studio-dark': '#050a15',
-    'studio-light': '#1a2a3a',
-    'blur': '#0a1628',
-    'custom': '#0d1020',
+    'studio-dark': '#0b0b0d',
+    'studio-light': '#1b1b1f',
+    'blur': '#141418',
+    'custom': '#101014',
   };
 
   return (
     <>
-      <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden', background: bgColors[backgroundStyle] || '#050a15' }}>
+      <div style={{ position: 'absolute', inset: 0, zIndex: 0, overflow: 'hidden', background: bgColors[backgroundStyle] || '#0b0b0d' }}>
         {/* Custom background image */}
         {backgroundStyle === 'custom' && backgroundImageUrl && (
           <div style={{
@@ -60,12 +60,7 @@ const StudioBackground: React.FC<StudioBackgroundProps> = ({
             inset: '-100%',
             width: '300%',
             height: '300%',
-            background: `
-              radial-gradient(circle at 30% 30%, #003875 0%, transparent 40%),
-              radial-gradient(circle at 70% 20%, #001529 0%, transparent 50%),
-              radial-gradient(circle at 40% 80%, #0d1b2a 0%, transparent 60%),
-              radial-gradient(circle at 80% 80%, #0057A8 0%, transparent 40%)
-            `,
+            background: 'radial-gradient(circle at 30% 30%, #303038 0%, transparent 40%), radial-gradient(circle at 70% 20%, #17171b 0%, transparent 50%), radial-gradient(circle at 40% 80%, #242428 0%, transparent 60%), radial-gradient(circle at 80% 80%, #3b3b42 0%, transparent 40%)',
             filter: 'blur(100px)',
             opacity: 0.8,
             animation: 'rotateBg 40s infinite linear',

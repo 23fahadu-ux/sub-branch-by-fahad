@@ -43,6 +43,10 @@ const Lobby: React.FC = () => {
 
   const generateRoomId = () => `room-${Math.random().toString(36).slice(2, 8)}`;
 
+  const handleCreateStudio = () => {
+    navigate(`/studio/${generateRoomId()}`);
+  };
+
   const handleJoinRoom = () => {
     const roomId = prompt('Enter Room ID or Episode Invite Link:');
     if (roomId) {
@@ -61,7 +65,7 @@ const Lobby: React.FC = () => {
       <div
         style={{
           minHeight: '100vh',
-          background: COLORS.bg,
+          background: '#0b0b0d',
           fontFamily: FONTS.ui,
           position: 'relative',
           overflow: 'hidden',
@@ -77,12 +81,7 @@ const Lobby: React.FC = () => {
             left: '-50%',
             width: '200%',
             height: '200%',
-            background: `
-              radial-gradient(circle at 30% 30%, #003875 0%, transparent 40%),
-              radial-gradient(circle at 70% 20%, #001529 0%, transparent 50%),
-              radial-gradient(circle at 40% 80%, #0d1b2a 0%, transparent 60%),
-              radial-gradient(circle at 80% 80%, #0057A8 0%, transparent 40%)
-            `,
+            background: 'radial-gradient(circle at 50% 40%, rgba(42,42,48,0.7) 0%, transparent 58%), radial-gradient(circle at 20% 90%, rgba(20,20,24,0.9) 0%, transparent 55%)',
             filter: 'blur(80px)',
             opacity: 0.6,
             zIndex: 0,
@@ -180,7 +179,7 @@ const Lobby: React.FC = () => {
               }}
             >
               <button
-                onClick={() => navigate('/admin')}
+                onClick={handleCreateStudio}
                 style={{
                   background: 'linear-gradient(135deg, #00A8FF 0%, #0057A8 100%)',
                   color: COLORS.white,

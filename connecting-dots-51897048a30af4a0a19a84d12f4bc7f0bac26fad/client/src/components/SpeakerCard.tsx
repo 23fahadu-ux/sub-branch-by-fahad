@@ -50,10 +50,13 @@ const SpeakerCard: React.FC<SpeakerCardProps> = ({
     <div
       style={{
         position: 'relative',
+        width: '100%',
+        maxWidth: '100%',
+        maxHeight: '100%',
         borderRadius: 24,
         overflow: 'hidden',
         aspectRatio: '16/9',
-        background: 'linear-gradient(135deg, #0d1b2a 0%, #050a15 100%)',
+        background: 'linear-gradient(135deg, #242428 0%, #0b0b0d 100%)',
         border: speaker.isSpeaking ? '2px solid rgba(0, 168, 255, 0.8)' : '1px solid rgba(255, 255, 255, 0.1)',
         boxShadow: speaker.isSpeaking
           ? '0 0 30px rgba(0, 168, 255, 0.4), inset 0 0 20px rgba(0, 168, 255, 0.2)'
@@ -86,7 +89,8 @@ const SpeakerCard: React.FC<SpeakerCardProps> = ({
           style={{
             width: '100%',
             height: '100%',
-            objectFit: 'cover',
+            objectFit: 'contain',
+            background: '#000',
             position: 'absolute',
             inset: 0,
             filter: 'contrast(1.1) saturate(1.1)',

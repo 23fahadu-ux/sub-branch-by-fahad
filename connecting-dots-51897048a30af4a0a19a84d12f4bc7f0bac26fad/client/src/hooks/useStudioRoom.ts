@@ -16,7 +16,8 @@ interface UseStudioRoomReturn {
     roomId: string,
     participantName: string,
     token: string,
-    urlOverride?: string
+    urlOverride?: string,
+    mediaOptions?: { audioEnabled: boolean; videoEnabled: boolean }
   ) => Promise<void>;
   disconnect: () => void;
   toggleMute: () => void;
@@ -59,7 +60,13 @@ const useStudioRoom = (): UseStudioRoomReturn => {
   }, []);
 
   const connect = useCallback(
-    async (_roomId: string, _participantName: string, token: string, urlOverride?: string) => {
+    async (
+      _roomId: string,
+      _participantName: string,
+      token: string,
+      urlOverride?: string,
+      mediaOptions?: { audioEnabled: boolean; videoEnabled: boolean }
+    ) => {
       try {
         setIsConnecting(true);
         setError(null);
@@ -86,6 +93,12 @@ const useStudioRoom = (): UseStudioRoomReturn => {
 
         await nextRoom.connect(urlOverride ?? LIVEKIT_URL, token);
         await nextRoom.localParticipant.enableCameraAndMicrophone();
+        if (mediaOptions) {
+          await nextRoom.localParticipant.setMicrophoneEnabled(mediaOptions.audioEnabled);
+          await nextRoom.localParticipant.setCameraEnabled(mediaOptions.videoEnabled);
+          setIsMuted(!mediaOptions.audioEnabled);
+          setIsCameraOff(!mediaOptions.videoEnabled);
+        }
 
         setRoom(nextRoom);
         setLocalParticipant(nextRoom.localParticipant);
