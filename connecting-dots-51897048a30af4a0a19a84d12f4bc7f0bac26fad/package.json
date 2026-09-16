@@ -1,0 +1,16 @@
+{
+  "name": "connecting-dot",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"cd client && npm run dev\" \"cd server && npm run dev\"",
+    "install:all": "npm install && cd client && npm install && cd ../server && npm install",
+    "build": "cd client && npm run build && cd ../server && npm run build",
+    "deploy:hosting": "cd client && npm run build && firebase deploy --only hosting",
+    "deploy:rules": "cd client && firebase deploy --only firestore:rules,firestore:indexes",
+    "deploy:server": "cd server && docker compose up -d --build"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.0"
+  }
+}
