@@ -186,6 +186,7 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
   const segmentationMaskRef = useRef<CanvasImageSource | null>(null);
   const segmentingRef = useRef(false);
   const lastSegmentationRef = useRef(0);
+  const foregroundCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const logoDataUrl = useMemo(() => {
     if (logoUrl) return logoUrl;
     try {
@@ -409,11 +410,22 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
               const backgroundCrop = fitCover(cameraBackground.naturalWidth, cameraBackground.naturalHeight, cellW, cellH);
               ctx.drawImage(cameraBackground, backgroundCrop.sx, backgroundCrop.sy, backgroundCrop.sw, backgroundCrop.sh, x, y, cellW, cellH);
             }
-            ctx.drawImage(v, sx, sy, sw, sh, x, y, cellW, cellH);
             if (useVirtualBackground && segmentationMaskRef.current) {
-              ctx.globalCompositeOperation = 'destination-in';
-              ctx.drawImage(segmentationMaskRef.current, x, y, cellW, cellH);
-              ctx.globalCompositeOperation = 'source-over';
+              const foregroundCanvas = foregroundCanvasRef.current ?? document.createElement('canvas');
+              foregroundCanvasRef.current = foregroundCanvas;
+              foregroundCanvas.width = Math.max(1, Math.round(cellW));
+              foregroundCanvas.height = Math.max(1, Math.round(cellH));
+              const foregroundContext = foregroundCanvas.getContext('2d');
+              if (foregroundContext) {
+                foregroundContext.clearRect(0, 0, foregroundCanvas.width, foregroundCanvas.height);
+                foregroundContext.drawImage(v, sx, sy, sw, sh, 0, 0, cellW, cellH);
+                foregroundContext.globalCompositeOperation = 'destination-in';
+                foregroundContext.drawImage(segmentationMaskRef.current, 0, 0, cellW, cellH);
+                foregroundContext.globalCompositeOperation = 'source-over';
+                ctx.drawImage(foregroundCanvas, x, y, cellW, cellH);
+              }
+            } else {
+              ctx.drawImage(v, sx, sy, sw, sh, x, y, cellW, cellH);
             }
           } else {
             ctx.fillStyle = 'rgba(0,0,0,0.25)';
