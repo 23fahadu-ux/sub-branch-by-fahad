@@ -543,34 +543,9 @@ const Studio: React.FC = () => {
             </div>
           ) : null}
 
-          {/* Grid Layout for Speakers */}
-          <div
-            style={{
-              flex: 1,
-              width: '100%',
-              minHeight: 0,
-              display: 'grid',
-              gridTemplateColumns: gridColumns,
-              gap: 24,
-              alignContent: 'center',
-              justifyContent: 'center',
-              zIndex: 1,
-              overflow: 'hidden',
-              paddingBottom: backstageSpeakers.length > 0 ? 140 : 0,
-            }}
-          >
-            {activeSpeakers.map(({ speaker, stream, isLocal }) => (
-              <SpeakerCard 
-                key={speaker.id} 
-                speaker={speaker} 
-                isLocal={isLocal} 
-                stream={stream}
-                isHost={localSpeaker?.role === 'host' || localSpeaker?.role === 'co-host'}
-                onToggleStage={() => handleToggleStage(speaker)}
-                onToggleMute={handleToggleMute}
-                onToggleCamera={handleToggleCamera}
-              />
-            ))}
+          {/* Main stage mirrors the processed PROGRAM canvas exactly. */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1, overflow: 'hidden', paddingBottom: backstageSpeakers.length > 0 ? 140 : 0 }}>
+            <StageProgramPreview canvasRef={canvasRef} />
           </div>
 
           {/* Floating Reactions */}
@@ -1350,6 +1325,33 @@ const Studio: React.FC = () => {
         )}
       </div>
     </div>
+  );
+};
+
+const StageProgramPreview: React.FC<{ canvasRef: React.RefObject<HTMLCanvasElement> }> = ({ canvasRef }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video) return;
+    const stream = canvas.captureStream(30);
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    void video.play().catch(() => undefined);
+    return () => {
+      video.srcObject = null;
+      stream.getTracks().forEach((track) => track.stop());
+    };
+  }, [canvasRef]);
+
+  return (
+    <video
+      ref={videoRef}
+      aria-label="Program stage"
+      style={{ width: '100%', maxHeight: '100%', aspectRatio: '16 / 9', objectFit: 'contain', display: 'block', background: '#050507', borderRadius: 18 }}
+    />
   );
 };
 

@@ -420,7 +420,7 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
                 foregroundContext.clearRect(0, 0, foregroundCanvas.width, foregroundCanvas.height);
                 foregroundContext.drawImage(v, sx, sy, sw, sh, 0, 0, cellW, cellH);
                 foregroundContext.globalCompositeOperation = 'destination-in';
-                foregroundContext.drawImage(segmentationMaskRef.current, 0, 0, cellW, cellH);
+                foregroundContext.drawImage(segmentationMaskRef.current, sx, sy, sw, sh, 0, 0, cellW, cellH);
                 foregroundContext.globalCompositeOperation = 'source-over';
                 ctx.drawImage(foregroundCanvas, x, y, cellW, cellH);
               }
