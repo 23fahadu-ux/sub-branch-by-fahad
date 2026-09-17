@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
+import { SelfieSegmentation } from '@mediapipe/selfie_segmentation';
 import type { Overlay, MultiCameraLayout } from '../types';
 import { COLORS } from '../utils/constants';
 
@@ -178,6 +179,10 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
   const startTimeRef = useRef<number>(performance.now());
   const logoImageRef = useRef<HTMLImageElement | null>(null);
   const backgroundImageRef = useRef<HTMLImageElement | null>(null);
+  const segmenterRef = useRef<SelfieSegmentation | null>(null);
+  const segmentationMaskRef = useRef<CanvasImageSource | null>(null);
+  const segmentingRef = useRef(false);
+  const lastSegmentationRef = useRef(0);
   const logoDataUrl = useMemo(() => {
     if (logoUrl) return logoUrl;
     try {
@@ -252,6 +257,29 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
   }, [backgroundImageUrl]);
 
   useEffect(() => {
+    let cancelled = false;
+    const segmenter = new SelfieSegmentation({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
+    });
+    segmenter.setOptions({ modelSelection: 1 });
+    segmenter.onResults((results) => {
+      if (!cancelled) segmentationMaskRef.current = results.segmentationMask as CanvasImageSource;
+      segmentingRef.current = false;
+    });
+    segmenterRef.current = segmenter;
+    void segmenter.initialize().catch(() => {
+      if (!cancelled) segmenterRef.current = null;
+    });
+
+    return () => {
+      cancelled = true;
+      segmenterRef.current = null;
+      segmentationMaskRef.current = null;
+      void segmenter.close().catch(() => undefined);
+    };
+  }, []);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -315,6 +343,23 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
       const active = speakers.filter((s) => s.stream);
       const count = Math.max(1, active.length);
 
+      const localEntry = active.find((speaker) => speaker.isLocal);
+      const localVideo = localEntry ? videoElsRef.current.get(localEntry.id) : undefined;
+      if (
+        backgroundImageRef.current &&
+        segmenterRef.current &&
+        localVideo &&
+        localVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
+        !segmentingRef.current &&
+        now - lastSegmentationRef.current > 100
+      ) {
+        segmentingRef.current = true;
+        lastSegmentationRef.current = now;
+        void segmenterRef.current.send({ image: localVideo }).catch(() => {
+          segmentingRef.current = false;
+        });
+      }
+
       // Compute layout cells
       const cells = computeLayoutCells(layout, count, W, H, pad, topPad, bottomPad, gap);
 
@@ -344,7 +389,13 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
           const vh = v?.videoHeight ?? 0;
           if (v && v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && vw > 0 && vh > 0) {
             const { sx, sy, sw, sh } = fitCover(vw, vh, cellW, cellH);
+            const useVirtualBackground = Boolean(s?.isLocal && backgroundImageRef.current);
             ctx.drawImage(v, sx, sy, sw, sh, x, y, cellW, cellH);
+            if (useVirtualBackground && segmentationMaskRef.current) {
+              ctx.globalCompositeOperation = 'destination-in';
+              ctx.drawImage(segmentationMaskRef.current, x, y, cellW, cellH);
+              ctx.globalCompositeOperation = 'source-over';
+            }
           } else {
             ctx.fillStyle = 'rgba(0,0,0,0.25)';
             ctx.fillRect(x, y, cellW, cellH);
