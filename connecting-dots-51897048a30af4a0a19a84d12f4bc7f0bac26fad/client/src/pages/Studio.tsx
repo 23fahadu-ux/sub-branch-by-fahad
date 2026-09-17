@@ -109,7 +109,13 @@ const Studio: React.FC = () => {
   const [previewAudioEnabled, setPreviewAudioEnabled] = useState(true);
   const [previewVideoEnabled, setPreviewVideoEnabled] = useState(true);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
-  const [cameraBackgroundImageUrl, setCameraBackgroundImageUrl] = useState<string | null>(null);
+  const [cameraBackgroundImageUrl, setCameraBackgroundImageUrl] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('connectingdot_camera_background');
+    } catch {
+      return null;
+    }
+  });
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const isGuestView = (localSpeaker?.role ?? joinForm.role) === 'guest';
 
@@ -687,7 +693,12 @@ const Studio: React.FC = () => {
                     <button
                       key={preset.label}
                       type="button"
-                      onClick={() => { setCameraBackgroundImageUrl(preset.url); setShowCameraBackgrounds(false); }}
+                      onClick={() => {
+                        setCameraBackgroundImageUrl(preset.url);
+                        if (preset.url) localStorage.setItem('connectingdot_camera_background', preset.url);
+                        else localStorage.removeItem('connectingdot_camera_background');
+                        setShowCameraBackgrounds(false);
+                      }}
                       style={{
                         minHeight: 66,
                         borderRadius: 10,
@@ -704,6 +715,37 @@ const Studio: React.FC = () => {
                     </button>
                   ))}
                 </div>
+                <label style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  minHeight: 42, marginTop: 10, borderRadius: 10,
+                  border: '1px dashed rgba(255,255,255,0.22)',
+                  color: 'rgba(255,255,255,0.72)', fontFamily: FONTS.ui,
+                  fontSize: 10, fontWeight: 900, letterSpacing: '0.08em', cursor: 'pointer',
+                }}>
+                  UPLOAD YOUR BACKGROUND IMAGE
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('Background image must be under 5MB.');
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const dataUrl = String(reader.result);
+                        setCameraBackgroundImageUrl(dataUrl);
+                        localStorage.setItem('connectingdot_camera_background', dataUrl);
+                        setShowCameraBackgrounds(false);
+                      };
+                      reader.readAsDataURL(file);
+                      event.target.value = '';
+                    }}
+                  />
+                </label>
               </div>
             )}
             <div style={{
