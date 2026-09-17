@@ -80,6 +80,7 @@ const Studio: React.FC = () => {
     showName: 'Connecting Dot Podcast',
     episodeNumber: 1,
     logoUrl: null,
+    backgroundImageUrl: null,
     theme: 'modern',
   });
 
@@ -463,6 +464,8 @@ const Studio: React.FC = () => {
         isLive={isLive}
         layout={layout}
         accentColor={studioSettings.accentColor}
+        logoUrl={studioSettings.logoUrl}
+        backgroundImageUrl={studioSettings.backgroundImageUrl}
         lowerThird={
           lowerThirdSpeaker
             ? {
@@ -480,7 +483,7 @@ const Studio: React.FC = () => {
         episodeNumber={studioSettings.episodeNumber}
         isLive={isLive}
         backgroundStyle={studioSettings.backgroundStyle}
-        backgroundImageUrl={studioSettings.logoUrl}
+        backgroundImageUrl={studioSettings.backgroundImageUrl || studioSettings.logoUrl}
       />
 
       {/* Live captions overlay (Web Speech API, free) */}
@@ -842,6 +845,28 @@ const Studio: React.FC = () => {
                         }}
                       >
                         {bg.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ marginTop: 12, fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.4)' }}>
+                    REALISTIC EMPTY STUDIO BACKGROUNDS
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+                    {[
+                      { url: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=1200&q=85', label: 'Warm Podcast Room' },
+                      { url: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=1200&q=85', label: 'Dark Microphone Studio' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.url}
+                        onClick={() => setStudioSettings(prev => ({ ...prev, backgroundStyle: 'custom', backgroundImageUrl: preset.url }))}
+                        style={{
+                          height: 72, borderRadius: 10, border: studioSettings.backgroundImageUrl === preset.url ? `2px solid ${COLORS.primaryBlue}` : '1px solid rgba(255,255,255,0.1)',
+                          background: `linear-gradient(rgba(0,0,0,0.22), rgba(0,0,0,0.45)), url(${preset.url}) center/cover`,
+                          color: '#fff', fontSize: 9, fontWeight: 900, cursor: 'pointer', textTransform: 'uppercase',
+                        }}
+                      >
+                        {preset.label}
                       </button>
                     ))}
                   </div>

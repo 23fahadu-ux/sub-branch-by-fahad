@@ -37,6 +37,7 @@ const useRTMPStream = (): UseRTMPStreamReturn => {
 
   const { connected, sendBinary, send } = useSocket();
   const recorderRef = useRef<MediaRecorder | null>(null);
+  const serverStreamRef = useRef(false);
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const audioCtxRef = useRef<AudioContext | null>(null);
 
@@ -56,6 +57,7 @@ const useRTMPStream = (): UseRTMPStreamReturn => {
 
         // ── 1. Build RTMP target body ──────────────────────────────────
         const enabledTargets = streamTargets.filter((t) => t.enabled);
+        const hasRemoteTargets = enabledTargets.some((t) => t.rtmpKey?.trim() || t.rtmpUrl?.trim());
         const body: Record<string, unknown> = {};
         const customTargets: string[] = [];
 
@@ -70,7 +72,10 @@ const useRTMPStream = (): UseRTMPStreamReturn => {
         if (customTargets.length > 0) body.targets = customTargets;
 
         // ── 2. Start FFmpeg on the server ──────────────────────────────
-        await axios.post(`${API_BASE}/api/stream/start`, body);
+        if (hasRemoteTargets) {
+          await axios.post(`${API_BASE}/api/stream/start`, body);
+          serverStreamRef.current = true;
+        }
 
         // ── 3. Capture canvas video ────────────────────────────────────
         const videoStream = canvasRef.current.captureStream(30);
@@ -101,7 +106,7 @@ const useRTMPStream = (): UseRTMPStreamReturn => {
         const combinedStream = new MediaStream(tracks);
 
         // ── 5. Check WS is connected (shared context — no extra connection) ──
-        if (!connected) {
+        if (hasRemoteTargets && !connected) {
           throw new Error('WebSocket not connected');
         }
 
@@ -113,7 +118,7 @@ const useRTMPStream = (): UseRTMPStreamReturn => {
         const recorder = new MediaRecorder(combinedStream, opts);
 
         recorder.ondataavailable = (e) => {
-          if (e.data.size > 0 && connected) {
+          if (e.data.size > 0 && connected && hasRemoteTargets) {
             sendBinary(e.data);
           }
         };
@@ -129,7 +134,7 @@ const useRTMPStream = (): UseRTMPStreamReturn => {
         timerRef.current = setInterval(() => setStreamDuration((p) => p + 1), 1000);
         setIsStreaming(true);
       } catch (err) {
-        axios.post(`${API_BASE}/api/stream/stop`).catch(() => {});
+        if (serverStreamRef.current) axios.post(`${API_BASE}/api/stream/stop`).catch(() => {});
         setError(err instanceof Error ? err.message : 'Failed to start stream');
       }
     },
@@ -157,11 +162,16 @@ const useRTMPStream = (): UseRTMPStreamReturn => {
     setStreamDuration(0);
     setIsStreaming(false);
 
-    try {
-      await axios.post(`${API_BASE}/api/stream/stop`);
+    if (serverStreamRef.current) {
+      try {
+        await axios.post(`${API_BASE}/api/stream/stop`);
+        serverStreamRef.current = false;
+        setError(null);
+      } catch (err) {
+        setError(err instanceof Error ? `Stopped locally, but server stop failed: ${err.message}` : 'Stopped locally, but server stop failed');
+      }
+    } else {
       setError(null);
-    } catch (err) {
-      setError(err instanceof Error ? `Stopped locally, but server stop failed: ${err.message}` : 'Stopped locally, but server stop failed');
     }
   }, []);
 

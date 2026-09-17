@@ -1,8 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 
 const RECORDINGS_DIR = path.join(process.cwd(), 'recordings');
+const execFileAsync = promisify(execFile);
 
 // Ensure directory exists
 if (!fs.existsSync(RECORDINGS_DIR)) {
@@ -100,21 +103,35 @@ export async function finalizeSession(sessionId: string): Promise<{
   const outputName = `connecting-dot-${timestamp}-${sessionId.slice(0, 8)}.webm`;
   const outputPath = path.join(RECORDINGS_DIR, outputName);
 
-  // Concatenate all chunks into a single file
-  const writeStream = fs.createWriteStream(outputPath);
+  // WebM chunks are separate containers; remux them instead of concatenating bytes.
+  const listPath = path.join(sessionDir, 'chunks.txt');
+  const chunkList = session.chunkFiles
+    .filter((chunkPath) => fs.existsSync(chunkPath))
+    .map((chunkPath) => `file '${chunkPath.replace(/'/g, "'\\''")}'`)
+    .join('\n');
+  fs.writeFileSync(listPath, chunkList);
 
-  for (const chunkPath of session.chunkFiles) {
-    if (fs.existsSync(chunkPath)) {
-      const data = fs.readFileSync(chunkPath);
-      writeStream.write(data);
+  try {
+    await execFileAsync('ffmpeg', [
+      '-y', '-f', 'concat', '-safe', '0', '-i', listPath,
+      '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
+      '-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0',
+      '-c:a', 'libopus', '-b:a', '128k',
+      outputPath,
+    ]);
+  } catch (error) {
+    console.warn('[RecordingManager] ffmpeg remux failed; falling back to byte concatenation:', error);
+    const writeStream = fs.createWriteStream(outputPath);
+    for (const chunkPath of session.chunkFiles) {
+      if (fs.existsSync(chunkPath)) writeStream.write(fs.readFileSync(chunkPath));
     }
+    await new Promise<void>((resolve, reject) => {
+      writeStream.on('finish', resolve);
+      writeStream.on('error', reject);
+      writeStream.end();
+    });
   }
-
-  await new Promise<void>((resolve, reject) => {
-    writeStream.on('finish', resolve);
-    writeStream.on('error', reject);
-    writeStream.end();
-  });
+  try { fs.unlinkSync(listPath); } catch { /* cleanup is best effort */ }
 
   const stats = fs.statSync(outputPath);
 

@@ -21,6 +21,8 @@ interface StudioCanvasMixerProps {
   layout?: MultiCameraLayout;
   lowerThird?: { name: string; role: string; city: string; visible: boolean } | null;
   accentColor?: string;
+  logoUrl?: string | null;
+  backgroundImageUrl?: string | null;
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -168,18 +170,22 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
   layout = 'grid',
   lowerThird,
   accentColor,
+  logoUrl,
+  backgroundImageUrl,
 }) => {
   const resolvedAccent = accentColor || COLORS.primaryBlue;
   const rafRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(performance.now());
   const logoImageRef = useRef<HTMLImageElement | null>(null);
+  const backgroundImageRef = useRef<HTMLImageElement | null>(null);
   const logoDataUrl = useMemo(() => {
+    if (logoUrl) return logoUrl;
     try {
       return localStorage.getItem(LOGO_STORAGE_KEY);
     } catch {
       return null;
     }
-  }, []);
+  }, [logoUrl]);
 
   const videoElsRef = useRef<Map<string, HTMLVideoElement>>(new Map());
 
@@ -235,6 +241,17 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
   }, [logoDataUrl]);
 
   useEffect(() => {
+    if (!backgroundImageUrl) {
+      backgroundImageRef.current = null;
+      return;
+    }
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.src = backgroundImageUrl;
+    backgroundImageRef.current = image;
+  }, [backgroundImageUrl]);
+
+  useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
@@ -258,11 +275,20 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
 
       ctx.globalAlpha = transitionRef.current;
 
+      // Background (realistic studio image when selected, with a dark readability layer)
+      const backgroundImage = backgroundImageRef.current;
+      if (backgroundImage?.complete && backgroundImage.naturalWidth > 0) {
+        const { sx, sy, sw, sh } = fitCover(backgroundImage.naturalWidth, backgroundImage.naturalHeight, W, H);
+        ctx.drawImage(backgroundImage, sx, sy, sw, sh, 0, 0, W, H);
+        ctx.fillStyle = 'rgba(0,0,0,0.32)';
+        ctx.fillRect(0, 0, W, H);
+      }
+
       // Background (subtle animated gradient)
       const g = ctx.createLinearGradient(0, 0, W, H);
-      g.addColorStop(0, '#050A15');
-      g.addColorStop(0.6, '#08162F');
-      g.addColorStop(1, '#050A15');
+      g.addColorStop(0, backgroundImage ? 'rgba(5,5,8,0.18)' : '#050A15');
+      g.addColorStop(0.6, backgroundImage ? 'rgba(8,8,12,0.12)' : '#08162F');
+      g.addColorStop(1, backgroundImage ? 'rgba(5,5,8,0.24)' : '#050A15');
       ctx.fillStyle = g;
       ctx.fillRect(0, 0, W, H);
 
@@ -359,6 +385,24 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
           ctx.fillStyle = '#001529';
           ctx.font = '900 12px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
           ctx.fillText('LOCAL', x + 38, y + 38);
+
+          // Broadcast watermark stays inside the recorded host camera frame.
+          const logo = logoImageRef.current;
+          const watermarkW = Math.min(170, cellW * 0.22);
+          const watermarkH = 42;
+          ctx.fillStyle = 'rgba(0,0,0,0.62)';
+          drawRoundedRect(ctx, x + 18, y + cellH - labelH - watermarkH - 16, watermarkW, watermarkH, 8);
+          ctx.fill();
+          if (logo?.complete && logo.naturalWidth > 0) {
+            const scale = Math.min((watermarkW - 14) / logo.naturalWidth, (watermarkH - 10) / logo.naturalHeight);
+            const lw = logo.naturalWidth * scale;
+            const lh = logo.naturalHeight * scale;
+            ctx.drawImage(logo, x + 25, y + cellH - labelH - watermarkH - 11 + (watermarkH - lh) / 2, lw, lh);
+          } else {
+            ctx.fillStyle = '#00A8FF';
+            ctx.font = '900 15px Inter, sans-serif';
+            ctx.fillText('CONNECTING DOT', x + 28, y + cellH - labelH - 25);
+          }
         }
 
         ctx.restore();

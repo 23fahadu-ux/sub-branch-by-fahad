@@ -150,7 +150,7 @@ router.get('/download/:filename', (req: Request, res: Response) => {
   }
 
   res.setHeader('Content-Type', 'video/webm');
-  res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+  res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
   res.sendFile(filePath);
 });
 
