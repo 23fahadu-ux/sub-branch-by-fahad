@@ -24,6 +24,7 @@ interface StudioCanvasMixerProps {
   accentColor?: string;
   logoUrl?: string | null;
   backgroundImageUrl?: string | null;
+  cameraBackgroundImageUrl?: string | null;
 }
 
 function clamp(n: number, min: number, max: number) {
@@ -173,12 +174,14 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
   accentColor,
   logoUrl,
   backgroundImageUrl,
+  cameraBackgroundImageUrl,
 }) => {
   const resolvedAccent = accentColor || COLORS.primaryBlue;
   const rafRef = useRef<number | null>(null);
   const startTimeRef = useRef<number>(performance.now());
   const logoImageRef = useRef<HTMLImageElement | null>(null);
   const backgroundImageRef = useRef<HTMLImageElement | null>(null);
+  const cameraBackgroundImageRef = useRef<HTMLImageElement | null>(null);
   const segmenterRef = useRef<SelfieSegmentation | null>(null);
   const segmentationMaskRef = useRef<CanvasImageSource | null>(null);
   const segmentingRef = useRef(false);
@@ -255,6 +258,17 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
     image.src = backgroundImageUrl;
     backgroundImageRef.current = image;
   }, [backgroundImageUrl]);
+
+  useEffect(() => {
+    if (!cameraBackgroundImageUrl) {
+      cameraBackgroundImageRef.current = null;
+      return;
+    }
+    const image = new Image();
+    image.crossOrigin = 'anonymous';
+    image.src = cameraBackgroundImageUrl;
+    cameraBackgroundImageRef.current = image;
+  }, [cameraBackgroundImageUrl]);
 
   useEffect(() => {
     let cancelled = false;
@@ -346,7 +360,7 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
       const localEntry = active.find((speaker) => speaker.isLocal);
       const localVideo = localEntry ? videoElsRef.current.get(localEntry.id) : undefined;
       if (
-        backgroundImageRef.current &&
+        cameraBackgroundImageRef.current &&
         segmenterRef.current &&
         localVideo &&
         localVideo.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA &&
@@ -389,7 +403,12 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
           const vh = v?.videoHeight ?? 0;
           if (v && v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && vw > 0 && vh > 0) {
             const { sx, sy, sw, sh } = fitCover(vw, vh, cellW, cellH);
-            const useVirtualBackground = Boolean(s?.isLocal && backgroundImageRef.current);
+            const cameraBackground = s?.isLocal ? cameraBackgroundImageRef.current : null;
+            const useVirtualBackground = Boolean(s?.isLocal && cameraBackground);
+            if (cameraBackground?.complete && cameraBackground.naturalWidth > 0) {
+              const backgroundCrop = fitCover(cameraBackground.naturalWidth, cameraBackground.naturalHeight, cellW, cellH);
+              ctx.drawImage(cameraBackground, backgroundCrop.sx, backgroundCrop.sy, backgroundCrop.sw, backgroundCrop.sh, x, y, cellW, cellH);
+            }
             ctx.drawImage(v, sx, sy, sw, sh, x, y, cellW, cellH);
             if (useVirtualBackground && segmentationMaskRef.current) {
               ctx.globalCompositeOperation = 'destination-in';
@@ -674,7 +693,7 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };
-  }, [canvasRef, speakers, overlays, showName, episodeNumber, isLive, lowerThird, layout, logoDataUrl, backgroundImageUrl]);
+  }, [canvasRef, speakers, overlays, showName, episodeNumber, isLive, lowerThird, layout, logoDataUrl, backgroundImageUrl, cameraBackgroundImageUrl]);
 
   return null;
 };

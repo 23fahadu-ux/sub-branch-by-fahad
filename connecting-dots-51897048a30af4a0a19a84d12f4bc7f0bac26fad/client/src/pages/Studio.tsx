@@ -48,6 +48,7 @@ const Studio: React.FC = () => {
   const [autoDirectorEnabled, setAutoDirectorEnabled] = useState(false);
   const [sidePanel, setSidePanel] = useState<'mixer' | 'chat' | 'gear' | 'cameras'>('mixer');
   const [showGfx, setShowGfx] = useState(false);
+  const [showCameraBackgrounds, setShowCameraBackgrounds] = useState(false);
   const [reactions, setReactions] = useState<{ id: string; emoji: string; x: number; ts: number }[]>([]);
   const [transitionMode, setTransitionMode] = useState<'cut' | 'crossfade'>('cut');
 
@@ -108,6 +109,7 @@ const Studio: React.FC = () => {
   const [previewAudioEnabled, setPreviewAudioEnabled] = useState(true);
   const [previewVideoEnabled, setPreviewVideoEnabled] = useState(true);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [cameraBackgroundImageUrl, setCameraBackgroundImageUrl] = useState<string | null>(null);
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const isGuestView = (localSpeaker?.role ?? joinForm.role) === 'guest';
 
@@ -472,6 +474,7 @@ const Studio: React.FC = () => {
         accentColor={studioSettings.accentColor}
         logoUrl={studioSettings.logoUrl}
         backgroundImageUrl={studioSettings.backgroundImageUrl}
+        cameraBackgroundImageUrl={cameraBackgroundImageUrl}
         lowerThird={
           lowerThirdSpeaker
             ? {
@@ -658,6 +661,51 @@ const Studio: React.FC = () => {
             )}
 
             {/* Control Bar + Reactions */}
+            {showCameraBackgrounds && !isGuestView && (
+              <div style={{
+                position: 'absolute',
+                bottom: 72,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 40,
+                width: 'min(520px, calc(100vw - 32px))',
+                padding: 14,
+                borderRadius: 16,
+                background: 'rgba(10,10,12,0.96)',
+                border: '1px solid rgba(255,255,255,0.14)',
+                boxShadow: '0 18px 50px rgba(0,0,0,0.55)',
+              }}>
+                <div style={{ color: '#fff', fontFamily: FONTS.ui, fontSize: 10, fontWeight: 900, letterSpacing: '0.16em', marginBottom: 10 }}>
+                  CAMERA BACKGROUND
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  {[
+                    { label: 'Original', url: null },
+                    { label: 'Warm Studio', url: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=1200&q=85' },
+                    { label: 'Dark Studio', url: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=1200&q=85' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => { setCameraBackgroundImageUrl(preset.url); setShowCameraBackgrounds(false); }}
+                      style={{
+                        minHeight: 66,
+                        borderRadius: 10,
+                        border: cameraBackgroundImageUrl === preset.url ? `2px solid ${COLORS.primaryBlue}` : '1px solid rgba(255,255,255,0.12)',
+                        background: preset.url ? `linear-gradient(rgba(0,0,0,0.25), rgba(0,0,0,0.45)), url(${preset.url}) center/cover` : '#202024',
+                        color: '#fff',
+                        fontFamily: FONTS.ui,
+                        fontSize: 10,
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 0,
               background: 'linear-gradient(90deg, rgba(11,11,13,0.96) 0%, rgba(28,28,32,0.96) 100%)',
@@ -691,6 +739,8 @@ const Studio: React.FC = () => {
                   onToggleMute={handleToggleMute}
                   onToggleCamera={handleToggleCamera}
                   onToggleScreenShare={() => isScreenSharing ? stopScreenShare() : startScreenShare()}
+                  onOpenCameraBackground={() => setShowCameraBackgrounds((visible) => !visible)}
+                  hasCameraBackground={Boolean(cameraBackgroundImageUrl)}
                   onLeave={() => {
                     disconnect();
                     window.location.href = '/';
