@@ -24,7 +24,16 @@ const SpeakerCard: React.FC<SpeakerCardProps> = ({
   onToggleCamera
 }) => {
   const internalVideoRef = useRef<HTMLVideoElement>(null);
+  const [storedLogo, setStoredLogo] = React.useState<string | null>(null);
   const resolvedVideoRef = videoRef ?? internalVideoRef;
+
+  useEffect(() => {
+    try {
+      setStoredLogo(localStorage.getItem('connectingdot_logo'));
+    } catch {
+      setStoredLogo(null);
+    }
+  }, []);
 
   useEffect(() => {
     if (!resolvedVideoRef.current) {
@@ -151,6 +160,35 @@ const SpeakerCard: React.FC<SpeakerCardProps> = ({
           zIndex: 3,
         }}
       />
+
+      {isLocal && (
+        <div
+          style={{
+            position: 'absolute',
+            left: 16,
+            bottom: 16,
+            zIndex: 5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 7,
+            padding: '5px 9px 5px 5px',
+            borderRadius: 7,
+            background: 'rgba(0,0,0,0.62)',
+            border: '1px solid rgba(255,255,255,0.16)',
+            backdropFilter: 'blur(8px)',
+            pointerEvents: 'none',
+          }}
+        >
+          {storedLogo ? (
+            <img src={storedLogo} alt="Connecting Dot" style={{ width: 74, height: 24, objectFit: 'contain', display: 'block' }} />
+          ) : (
+            <>
+              <span style={{ width: 22, height: 22, borderRadius: 6, display: 'grid', placeItems: 'center', background: '#00A8FF', color: '#fff', fontSize: 10, fontWeight: 900 }}>CD</span>
+              <span style={{ color: '#fff', fontFamily: FONTS.ui, fontSize: 9, fontWeight: 900, letterSpacing: '0.08em' }}>CONNECTING DOT</span>
+            </>
+          )}
+        </div>
+      )}
 
       {/* Info Panel - High-End Glassmorphism */}
       <div

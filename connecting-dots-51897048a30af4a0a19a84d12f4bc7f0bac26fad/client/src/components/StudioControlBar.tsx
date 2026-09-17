@@ -8,6 +8,8 @@ interface StudioControlBarProps {
   onToggleMute: () => void;
   onToggleCamera: () => void;
   onToggleScreenShare: () => void;
+  onOpenCameraBackground: () => void;
+  hasCameraBackground: boolean;
   onLeave: () => void;
 }
 
@@ -18,6 +20,8 @@ const StudioControlBar: React.FC<StudioControlBarProps> = ({
   onToggleMute,
   onToggleCamera,
   onToggleScreenShare,
+  onOpenCameraBackground,
+  hasCameraBackground,
   onLeave,
 }) => {
   const buttonStyle = (active: boolean, danger?: boolean): React.CSSProperties => ({
@@ -64,6 +68,15 @@ const StudioControlBar: React.FC<StudioControlBarProps> = ({
         title={isCameraOff ? "Turn Camera On" : "Turn Camera Off"}
       >
         {isCameraOff ? '📷' : '📹'}
+      </div>
+
+      {/* Virtual camera background */}
+      <div
+        style={buttonStyle(hasCameraBackground)}
+        onClick={onOpenCameraBackground}
+        title="Change camera background"
+      >
+        🏞️
       </div>
 
       {/* Screen Share */}

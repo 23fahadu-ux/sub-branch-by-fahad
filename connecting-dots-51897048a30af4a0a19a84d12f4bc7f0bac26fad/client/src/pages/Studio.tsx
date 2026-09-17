@@ -48,6 +48,7 @@ const Studio: React.FC = () => {
   const [autoDirectorEnabled, setAutoDirectorEnabled] = useState(false);
   const [sidePanel, setSidePanel] = useState<'mixer' | 'chat' | 'gear' | 'cameras'>('mixer');
   const [showGfx, setShowGfx] = useState(false);
+  const [showCameraBackgrounds, setShowCameraBackgrounds] = useState(false);
   const [reactions, setReactions] = useState<{ id: string; emoji: string; x: number; ts: number }[]>([]);
   const [transitionMode, setTransitionMode] = useState<'cut' | 'crossfade'>('cut');
 
@@ -80,6 +81,7 @@ const Studio: React.FC = () => {
     showName: 'Connecting Dot Podcast',
     episodeNumber: 1,
     logoUrl: null,
+    backgroundImageUrl: null,
     theme: 'modern',
   });
 
@@ -107,6 +109,13 @@ const Studio: React.FC = () => {
   const [previewAudioEnabled, setPreviewAudioEnabled] = useState(true);
   const [previewVideoEnabled, setPreviewVideoEnabled] = useState(true);
   const [isPreviewMode, setIsPreviewMode] = useState(false);
+  const [cameraBackgroundImageUrl, setCameraBackgroundImageUrl] = useState<string | null>(() => {
+    try {
+      return localStorage.getItem('connectingdot_camera_background');
+    } catch {
+      return null;
+    }
+  });
   const previewVideoRef = useRef<HTMLVideoElement>(null);
   const isGuestView = (localSpeaker?.role ?? joinForm.role) === 'guest';
 
@@ -452,7 +461,13 @@ const Studio: React.FC = () => {
         position: 'relative',
       }}
     >
-      <canvas ref={canvasRef} width={1920} height={1080} style={{ display: 'none' }} />
+      <canvas
+        ref={canvasRef}
+        width={1920}
+        height={1080}
+        aria-hidden="true"
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+      />
 
       <StudioCanvasMixer
         canvasRef={canvasRef}
@@ -463,6 +478,9 @@ const Studio: React.FC = () => {
         isLive={isLive}
         layout={layout}
         accentColor={studioSettings.accentColor}
+        logoUrl={studioSettings.logoUrl}
+        backgroundImageUrl={studioSettings.backgroundImageUrl}
+        cameraBackgroundImageUrl={cameraBackgroundImageUrl}
         lowerThird={
           lowerThirdSpeaker
             ? {
@@ -480,7 +498,7 @@ const Studio: React.FC = () => {
         episodeNumber={studioSettings.episodeNumber}
         isLive={isLive}
         backgroundStyle={studioSettings.backgroundStyle}
-        backgroundImageUrl={studioSettings.logoUrl}
+        backgroundImageUrl={studioSettings.backgroundImageUrl || studioSettings.logoUrl}
       />
 
       {/* Live captions overlay (Web Speech API, free) */}
@@ -525,34 +543,9 @@ const Studio: React.FC = () => {
             </div>
           ) : null}
 
-          {/* Grid Layout for Speakers */}
-          <div
-            style={{
-              flex: 1,
-              width: '100%',
-              minHeight: 0,
-              display: 'grid',
-              gridTemplateColumns: gridColumns,
-              gap: 24,
-              alignContent: 'center',
-              justifyContent: 'center',
-              zIndex: 1,
-              overflow: 'hidden',
-              paddingBottom: backstageSpeakers.length > 0 ? 140 : 0,
-            }}
-          >
-            {activeSpeakers.map(({ speaker, stream, isLocal }) => (
-              <SpeakerCard 
-                key={speaker.id} 
-                speaker={speaker} 
-                isLocal={isLocal} 
-                stream={stream}
-                isHost={localSpeaker?.role === 'host' || localSpeaker?.role === 'co-host'}
-                onToggleStage={() => handleToggleStage(speaker)}
-                onToggleMute={handleToggleMute}
-                onToggleCamera={handleToggleCamera}
-              />
-            ))}
+          {/* Main stage mirrors the processed PROGRAM canvas exactly. */}
+          <div style={{ flex: 1, minHeight: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1, overflow: 'hidden', paddingBottom: backstageSpeakers.length > 0 ? 140 : 0 }}>
+            <StageProgramPreview canvasRef={canvasRef} />
           </div>
 
           {/* Floating Reactions */}
@@ -649,6 +642,87 @@ const Studio: React.FC = () => {
             )}
 
             {/* Control Bar + Reactions */}
+            {showCameraBackgrounds && !isGuestView && (
+              <div style={{
+                position: 'absolute',
+                bottom: 72,
+                left: '50%',
+                transform: 'translateX(-50%)',
+                zIndex: 40,
+                width: 'min(520px, calc(100vw - 32px))',
+                padding: 14,
+                borderRadius: 16,
+                background: 'rgba(10,10,12,0.96)',
+                border: '1px solid rgba(255,255,255,0.14)',
+                boxShadow: '0 18px 50px rgba(0,0,0,0.55)',
+              }}>
+                <div style={{ color: '#fff', fontFamily: FONTS.ui, fontSize: 10, fontWeight: 900, letterSpacing: '0.16em', marginBottom: 10 }}>
+                  CAMERA BACKGROUND
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 8 }}>
+                  {[
+                    { label: 'Original', url: null },
+                    { label: 'Warm Studio', url: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=1200&q=85' },
+                    { label: 'Dark Studio', url: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=1200&q=85' },
+                  ].map((preset) => (
+                    <button
+                      key={preset.label}
+                      type="button"
+                      onClick={() => {
+                        setCameraBackgroundImageUrl(preset.url);
+                        if (preset.url) localStorage.setItem('connectingdot_camera_background', preset.url);
+                        else localStorage.removeItem('connectingdot_camera_background');
+                        setShowCameraBackgrounds(false);
+                      }}
+                      style={{
+                        minHeight: 66,
+                        borderRadius: 10,
+                        border: cameraBackgroundImageUrl === preset.url ? `2px solid ${COLORS.primaryBlue}` : '1px solid rgba(255,255,255,0.12)',
+                        background: preset.url ? `linear-gradient(rgba(0,0,0,0.25), rgba(0,0,0,0.45)), url(${preset.url}) center/cover` : '#202024',
+                        color: '#fff',
+                        fontFamily: FONTS.ui,
+                        fontSize: 10,
+                        fontWeight: 900,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+                <label style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  minHeight: 42, marginTop: 10, borderRadius: 10,
+                  border: '1px dashed rgba(255,255,255,0.22)',
+                  color: 'rgba(255,255,255,0.72)', fontFamily: FONTS.ui,
+                  fontSize: 10, fontWeight: 900, letterSpacing: '0.08em', cursor: 'pointer',
+                }}>
+                  UPLOAD YOUR BACKGROUND IMAGE
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    style={{ display: 'none' }}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0];
+                      if (!file) return;
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert('Background image must be under 5MB.');
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onload = () => {
+                        const dataUrl = String(reader.result);
+                        setCameraBackgroundImageUrl(dataUrl);
+                        localStorage.setItem('connectingdot_camera_background', dataUrl);
+                        setShowCameraBackgrounds(false);
+                      };
+                      reader.readAsDataURL(file);
+                      event.target.value = '';
+                    }}
+                  />
+                </label>
+              </div>
+            )}
             <div style={{
               display: 'flex', alignItems: 'center', gap: 0,
               background: 'linear-gradient(90deg, rgba(11,11,13,0.96) 0%, rgba(28,28,32,0.96) 100%)',
@@ -682,6 +756,8 @@ const Studio: React.FC = () => {
                   onToggleMute={handleToggleMute}
                   onToggleCamera={handleToggleCamera}
                   onToggleScreenShare={() => isScreenSharing ? stopScreenShare() : startScreenShare()}
+                  onOpenCameraBackground={() => setShowCameraBackgrounds((visible) => !visible)}
+                  hasCameraBackground={Boolean(cameraBackgroundImageUrl)}
                   onLeave={() => {
                     disconnect();
                     window.location.href = '/';
@@ -842,6 +918,28 @@ const Studio: React.FC = () => {
                         }}
                       >
                         {bg.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <div style={{ marginTop: 12, fontSize: 10, fontWeight: 900, letterSpacing: '0.12em', color: 'rgba(255,255,255,0.4)' }}>
+                    REALISTIC EMPTY STUDIO BACKGROUNDS
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginTop: 8 }}>
+                    {[
+                      { url: 'https://images.unsplash.com/photo-1598488035139-bdbb2231ce04?w=1200&q=85', label: 'Warm Podcast Room' },
+                      { url: 'https://images.unsplash.com/photo-1478737270239-2f02b77fc618?w=1200&q=85', label: 'Dark Microphone Studio' },
+                    ].map((preset) => (
+                      <button
+                        key={preset.url}
+                        onClick={() => setStudioSettings(prev => ({ ...prev, backgroundStyle: 'custom', backgroundImageUrl: preset.url }))}
+                        style={{
+                          height: 72, borderRadius: 10, border: studioSettings.backgroundImageUrl === preset.url ? `2px solid ${COLORS.primaryBlue}` : '1px solid rgba(255,255,255,0.1)',
+                          background: `linear-gradient(rgba(0,0,0,0.22), rgba(0,0,0,0.45)), url(${preset.url}) center/cover`,
+                          color: '#fff', fontSize: 9, fontWeight: 900, cursor: 'pointer', textTransform: 'uppercase',
+                        }}
+                      >
+                        {preset.label}
                       </button>
                     ))}
                   </div>
@@ -1227,6 +1325,33 @@ const Studio: React.FC = () => {
         )}
       </div>
     </div>
+  );
+};
+
+const StageProgramPreview: React.FC<{ canvasRef: React.RefObject<HTMLCanvasElement> }> = ({ canvasRef }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const video = videoRef.current;
+    if (!canvas || !video) return;
+    const stream = canvas.captureStream(30);
+    video.srcObject = stream;
+    video.muted = true;
+    video.playsInline = true;
+    void video.play().catch(() => undefined);
+    return () => {
+      video.srcObject = null;
+      stream.getTracks().forEach((track) => track.stop());
+    };
+  }, [canvasRef]);
+
+  return (
+    <video
+      ref={videoRef}
+      aria-label="Program stage"
+      style={{ width: '100%', maxHeight: '100%', aspectRatio: '16 / 9', objectFit: 'contain', display: 'block', background: '#050507', borderRadius: 18 }}
+    />
   );
 };
 

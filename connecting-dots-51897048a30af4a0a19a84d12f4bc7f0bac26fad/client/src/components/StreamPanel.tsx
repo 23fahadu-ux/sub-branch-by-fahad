@@ -768,13 +768,6 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
         )}
         <button
           onClick={() => {
-            if (!isStreaming) {
-              const hasEnabled = targets.some(t => t.enabled && (t.rtmpKey?.trim() || t.rtmpUrl?.trim()));
-              if (!hasEnabled) {
-                alert('Paste your stream key and enable the platform toggle before going live.');
-                return;
-              }
-            }
             isStreaming ? stopStream() : startStream(canvasRef);
           }}
           style={{
@@ -800,7 +793,7 @@ const StreamPanel: React.FC<StreamPanelProps> = ({
               : '0 10px 30px rgba(0, 168, 255, 0.4), inset 0 2px 4px rgba(255,255,255,0.4)',
           }}
         >
-          {isStreaming ? 'STOP BROADCAST' : 'START BROADCAST'}
+          {isStreaming ? 'STOP BROADCAST' : targets.some(t => t.enabled && (t.rtmpKey?.trim() || t.rtmpUrl?.trim())) ? 'START BROADCAST' : 'START LOCAL PREVIEW'}
         </button>
 
         {isStreaming && (

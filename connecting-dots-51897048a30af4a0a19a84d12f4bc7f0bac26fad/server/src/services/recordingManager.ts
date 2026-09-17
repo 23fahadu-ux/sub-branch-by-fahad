@@ -1,8 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import { execFile } from 'child_process';
+import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 
 const RECORDINGS_DIR = path.join(process.cwd(), 'recordings');
+const execFileAsync = promisify(execFile);
 
 // Ensure directory exists
 if (!fs.existsSync(RECORDINGS_DIR)) {
@@ -100,21 +103,31 @@ export async function finalizeSession(sessionId: string): Promise<{
   const outputName = `connecting-dot-${timestamp}-${sessionId.slice(0, 8)}.webm`;
   const outputPath = path.join(RECORDINGS_DIR, outputName);
 
-  // Concatenate all chunks into a single file
-  const writeStream = fs.createWriteStream(outputPath);
-
+  // WebM chunks are separate containers; remux them instead of concatenating bytes.
+  const inputPath = path.join(sessionDir, 'recording-input.webm');
+  const inputStream = fs.createWriteStream(inputPath);
   for (const chunkPath of session.chunkFiles) {
-    if (fs.existsSync(chunkPath)) {
-      const data = fs.readFileSync(chunkPath);
-      writeStream.write(data);
-    }
+    if (fs.existsSync(chunkPath)) inputStream.write(fs.readFileSync(chunkPath));
   }
-
   await new Promise<void>((resolve, reject) => {
-    writeStream.on('finish', resolve);
-    writeStream.on('error', reject);
-    writeStream.end();
+    inputStream.on('finish', resolve);
+    inputStream.on('error', reject);
+    inputStream.end();
   });
+
+  try {
+    await execFileAsync('ffmpeg', [
+      '-y', '-i', inputPath,
+      '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
+      '-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0',
+      '-c:a', 'libopus', '-b:a', '128k',
+      outputPath,
+    ]);
+  } catch (error) {
+    console.warn('[RecordingManager] ffmpeg HD encode failed; keeping the original WebM:', error);
+    fs.copyFileSync(inputPath, outputPath);
+  }
+  try { fs.unlinkSync(inputPath); } catch { /* cleanup is best effort */ }
 
   const stats = fs.statSync(outputPath);
 

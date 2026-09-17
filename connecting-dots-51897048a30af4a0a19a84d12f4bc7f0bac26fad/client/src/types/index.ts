@@ -40,6 +40,7 @@ export interface StudioSettings {
   showName: string;
   episodeNumber: number;
   logoUrl: string | null;
+  backgroundImageUrl?: string | null;
   theme: StudioTheme;
 }
 

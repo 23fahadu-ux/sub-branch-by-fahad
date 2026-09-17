@@ -9,7 +9,7 @@ interface UseRecordingReturn {
   bytesUploaded: number;
   serverSaveEnabled: boolean;
   setServerSaveEnabled: (v: boolean) => void;
-  startRecording: (roomId?: string, episodeTitle?: string) => void;
+  startRecording: (roomId?: string, episodeTitle?: string) => Promise<void>;
   stopRecording: () => Promise<void>;
   downloadRecording: () => void;
 }
@@ -28,6 +28,7 @@ const useRecording = (canvasRef: React.RefObject<HTMLCanvasElement>): UseRecordi
   const chunkIndexRef = useRef(0);
   const sessionIdRef = useRef<string | null>(null);
   const autoSaveTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const uploadQueueRef = useRef<Promise<void>[]>([]);
 
   /** Upload a chunk to the server session */
   const uploadChunk = useCallback(
@@ -54,36 +55,44 @@ const useRecording = (canvasRef: React.RefObject<HTMLCanvasElement>): UseRecordi
   );
 
   const startRecording = useCallback(
-    (roomId?: string, episodeTitle?: string) => {
+    async (roomId?: string, episodeTitle?: string) => {
       if (!canvasRef.current) return;
 
-      const stream = canvasRef.current.captureStream(30);
-      const recorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9',
-      });
+      const videoStream = canvasRef.current.captureStream(30);
+      let audioStream: MediaStream | null = null;
+      try {
+        audioStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch {
+        audioStream = null;
+      }
+      const stream = new MediaStream([
+        ...videoStream.getVideoTracks(),
+        ...(audioStream?.getAudioTracks() ?? []),
+      ]);
+      const mimeType = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm']
+        .find((type) => MediaRecorder.isTypeSupported(type)) ?? '';
+      const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
 
       chunksRef.current = [];
       chunkIndexRef.current = 0;
       setBytesUploaded(0);
       setRecordingBlob(null);
 
-      // Start server session if enabled
+      // Start the server session before recording so the first chunk is not lost.
       if (serverSaveEnabled && roomId) {
-        fetch(`${API_BASE}/api/recordings/session/start`, {
+        try {
+          const response = await fetch(`${API_BASE}/api/recordings/session/start`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ roomId, episodeTitle }),
-        })
-          .then((r) => r.json())
-          .then((data) => {
-            sessionIdRef.current = data.sessionId;
-            setSessionId(data.sessionId);
-          })
-          .catch((err) => {
-            console.warn('[Recording] Failed to start server session:', err);
-            sessionIdRef.current = null;
-            setSessionId(null);
           });
+          if (!response.ok) throw new Error(`HTTP ${response.status}`);
+          const data = await response.json();
+          sessionIdRef.current = data.sessionId;
+          setSessionId(data.sessionId);
+        } catch (err) {
+          console.warn('[Recording] Failed to start server session:', err);
+        }
       }
 
       recorder.ondataavailable = (e) => {
@@ -93,7 +102,8 @@ const useRecording = (canvasRef: React.RefObject<HTMLCanvasElement>): UseRecordi
           // Upload chunk to server
           if (serverSaveEnabled && sessionIdRef.current) {
             const idx = chunkIndexRef.current++;
-            void uploadChunk(sessionIdRef.current, e.data, idx);
+            const upload = uploadChunk(sessionIdRef.current, e.data, idx);
+            uploadQueueRef.current.push(upload);
           }
         }
       };
@@ -101,6 +111,7 @@ const useRecording = (canvasRef: React.RefObject<HTMLCanvasElement>): UseRecordi
       recorder.onstop = () => {
         const blob = new Blob(chunksRef.current, { type: 'video/webm' });
         setRecordingBlob(blob);
+        audioStream?.getTracks().forEach((track) => track.stop());
       };
 
       recorder.start(1000);
@@ -117,10 +128,6 @@ const useRecording = (canvasRef: React.RefObject<HTMLCanvasElement>): UseRecordi
   );
 
   const stopRecording = useCallback(async () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-      mediaRecorderRef.current.stop();
-    }
-
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -130,6 +137,23 @@ const useRecording = (canvasRef: React.RefObject<HTMLCanvasElement>): UseRecordi
       clearInterval(autoSaveTimerRef.current);
       autoSaveTimerRef.current = null;
     }
+
+    // Wait for the final MediaRecorder data event and all chunk uploads.
+    await new Promise<void>((resolve) => {
+      if (!mediaRecorderRef.current || mediaRecorderRef.current.state === 'inactive') {
+        resolve();
+        return;
+      }
+      const recorder = mediaRecorderRef.current;
+      const previousStop = recorder.onstop;
+      recorder.onstop = (event) => {
+        previousStop?.call(recorder, event);
+        resolve();
+      };
+      recorder.stop();
+    });
+    await Promise.all(uploadQueueRef.current);
+    uploadQueueRef.current = [];
 
     // Finalize server session
     if (serverSaveEnabled && sessionIdRef.current) {
