@@ -266,8 +266,12 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
       return;
     }
     const image = new Image();
-    image.crossOrigin = 'anonymous';
+    if (/^https?:\/\//i.test(cameraBackgroundImageUrl)) {
+      image.crossOrigin = 'anonymous';
+    }
     image.src = cameraBackgroundImageUrl;
+    image.onload = () => { cameraBackgroundImageRef.current = image; };
+    image.onerror = () => { cameraBackgroundImageRef.current = null; };
     cameraBackgroundImageRef.current = image;
   }, [cameraBackgroundImageUrl]);
 
@@ -406,11 +410,12 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
             const { sx, sy, sw, sh } = fitCover(vw, vh, cellW, cellH);
             const cameraBackground = s?.isLocal ? cameraBackgroundImageRef.current : null;
             const useVirtualBackground = Boolean(s?.isLocal && cameraBackground);
-            if (cameraBackground?.complete && cameraBackground.naturalWidth > 0) {
+            const hasLoadedCameraBackground = Boolean(cameraBackground?.complete && cameraBackground.naturalWidth > 0);
+            if (cameraBackground && hasLoadedCameraBackground) {
               const backgroundCrop = fitCover(cameraBackground.naturalWidth, cameraBackground.naturalHeight, cellW, cellH);
               ctx.drawImage(cameraBackground, backgroundCrop.sx, backgroundCrop.sy, backgroundCrop.sw, backgroundCrop.sh, x, y, cellW, cellH);
             }
-            if (useVirtualBackground && segmentationMaskRef.current) {
+            if (useVirtualBackground && hasLoadedCameraBackground && segmentationMaskRef.current) {
               const foregroundCanvas = foregroundCanvasRef.current ?? document.createElement('canvas');
               foregroundCanvasRef.current = foregroundCanvas;
               foregroundCanvas.width = Math.max(1, Math.round(cellW));
@@ -424,7 +429,7 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
                 foregroundContext.globalCompositeOperation = 'source-over';
                 ctx.drawImage(foregroundCanvas, x, y, cellW, cellH);
               }
-            } else {
+            } else if (!useVirtualBackground || !hasLoadedCameraBackground) {
               ctx.drawImage(v, sx, sy, sw, sh, x, y, cellW, cellH);
             }
           } else {
