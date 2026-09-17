@@ -104,34 +104,30 @@ export async function finalizeSession(sessionId: string): Promise<{
   const outputPath = path.join(RECORDINGS_DIR, outputName);
 
   // WebM chunks are separate containers; remux them instead of concatenating bytes.
-  const listPath = path.join(sessionDir, 'chunks.txt');
-  const chunkList = session.chunkFiles
-    .filter((chunkPath) => fs.existsSync(chunkPath))
-    .map((chunkPath) => `file '${chunkPath.replace(/'/g, "'\\''")}'`)
-    .join('\n');
-  fs.writeFileSync(listPath, chunkList);
+  const inputPath = path.join(sessionDir, 'recording-input.webm');
+  const inputStream = fs.createWriteStream(inputPath);
+  for (const chunkPath of session.chunkFiles) {
+    if (fs.existsSync(chunkPath)) inputStream.write(fs.readFileSync(chunkPath));
+  }
+  await new Promise<void>((resolve, reject) => {
+    inputStream.on('finish', resolve);
+    inputStream.on('error', reject);
+    inputStream.end();
+  });
 
   try {
     await execFileAsync('ffmpeg', [
-      '-y', '-f', 'concat', '-safe', '0', '-i', listPath,
+      '-y', '-i', inputPath,
       '-vf', 'scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2',
       '-c:v', 'libvpx-vp9', '-crf', '30', '-b:v', '0',
       '-c:a', 'libopus', '-b:a', '128k',
       outputPath,
     ]);
   } catch (error) {
-    console.warn('[RecordingManager] ffmpeg remux failed; falling back to byte concatenation:', error);
-    const writeStream = fs.createWriteStream(outputPath);
-    for (const chunkPath of session.chunkFiles) {
-      if (fs.existsSync(chunkPath)) writeStream.write(fs.readFileSync(chunkPath));
-    }
-    await new Promise<void>((resolve, reject) => {
-      writeStream.on('finish', resolve);
-      writeStream.on('error', reject);
-      writeStream.end();
-    });
+    console.warn('[RecordingManager] ffmpeg HD encode failed; keeping the original WebM:', error);
+    fs.copyFileSync(inputPath, outputPath);
   }
-  try { fs.unlinkSync(listPath); } catch { /* cleanup is best effort */ }
+  try { fs.unlinkSync(inputPath); } catch { /* cleanup is best effort */ }
 
   const stats = fs.statSync(outputPath);
 

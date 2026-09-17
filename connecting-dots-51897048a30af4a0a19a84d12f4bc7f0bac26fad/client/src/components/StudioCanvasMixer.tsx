@@ -342,7 +342,7 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
           const v = videoElsRef.current.get(s.id);
           const vw = v?.videoWidth ?? 0;
           const vh = v?.videoHeight ?? 0;
-          if (v && vw > 0 && vh > 0) {
+          if (v && v.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA && vw > 0 && vh > 0) {
             const { sx, sy, sw, sh } = fitCover(vw, vh, cellW, cellH);
             ctx.drawImage(v, sx, sy, sw, sh, x, y, cellW, cellH);
           } else {
@@ -623,7 +623,7 @@ const StudioCanvasMixer: React.FC<StudioCanvasMixerProps> = ({
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = null;
     };
-  }, [canvasRef, speakers, overlays, showName, episodeNumber, isLive, lowerThird, layout]);
+  }, [canvasRef, speakers, overlays, showName, episodeNumber, isLive, lowerThird, layout, logoDataUrl, backgroundImageUrl]);
 
   return null;
 };

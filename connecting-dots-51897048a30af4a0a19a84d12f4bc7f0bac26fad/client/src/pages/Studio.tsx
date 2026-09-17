@@ -453,7 +453,13 @@ const Studio: React.FC = () => {
         position: 'relative',
       }}
     >
-      <canvas ref={canvasRef} width={1920} height={1080} style={{ display: 'none' }} />
+      <canvas
+        ref={canvasRef}
+        width={1920}
+        height={1080}
+        aria-hidden="true"
+        style={{ position: 'absolute', width: 1, height: 1, opacity: 0, pointerEvents: 'none' }}
+      />
 
       <StudioCanvasMixer
         canvasRef={canvasRef}
